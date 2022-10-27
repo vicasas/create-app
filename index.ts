@@ -7,7 +7,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import chalk from 'chalk'
+import { program } from 'commander'
 import prompts from 'prompts'
+
+type Options<T extends string> = { [id in T]: any }
 
 type FrameworkVariant = {
   name: string
@@ -41,70 +44,87 @@ const frameworks: Framework[] = [
 
 const cwd = process.cwd()
 
-const defaultTargetDir = 'my-app'
+let targerDir = ''
 
-const renameFiles: Record<string, string | undefined> = {
+const renameFiles: Record<string, string> = {
   _gitignore: '.gitignore',
 }
 
+program
+  .name('create-app')
+  .version('1.0.0', '-v --version')
+  .description('A CLI for generate a new app with one command')
+  .arguments('[project-directory]')
+  .usage(`${chalk.green('<project-directory>')} [options]`)
+  .action((name) => (targerDir = name))
+  .option(
+    '-t --template <template>',
+    'specify a template for the created project'
+  )
+  .allowUnknownOption()
+  .parse(process.argv)
+
+const questions: prompts.PromptObject<string>[] = [
+  {
+    type: 'text',
+    name: 'projectName',
+    message: 'Project name:',
+    initial: 'my-app',
+    onState: (state) => (targerDir = formatTargetDir(state.value)),
+  },
+  {
+    type: () => (isValidPackageName(targerDir) ? null : 'text'),
+    name: 'packageName',
+    message: 'Package name:',
+    initial: () => toValidPackageName(targerDir),
+    validate: (dir) => isValidPackageName(dir) || 'Invalid package.json name',
+  },
+  {
+    type: 'select',
+    name: 'framework',
+    message: 'Select a template:',
+    choices: frameworks.map((framework) => ({
+      title: framework.display,
+      value: framework,
+    })),
+  },
+  {
+    type: 'select',
+    name: 'variant',
+    message: 'Select a variant:',
+    choices: (prev: Framework) =>
+      prev.variants.map((variant) => ({
+        title: variant.display,
+        value: variant.name,
+      })),
+  },
+]
+
 async function init() {
-  let targerDir = defaultTargetDir
+  const options: Options<'template'> = program.opts()
 
   let response:
     | prompts.Answers<'projectName' | 'packageName' | 'framework' | 'variant'>
     | undefined
 
-  try {
-    response = await prompts(
-      [
-        {
-          type: 'text',
-          name: 'projectName',
-          message: 'Project name:',
-          initial: defaultTargetDir,
-          onState: (state) => (targerDir = formatTargetDir(state.value)),
-        },
-        {
-          type: () => (isValidPackageName(targerDir) ? null : 'text'),
-          name: 'packageName',
-          message: 'Package name:',
-          initial: () => toValidPackageName(targerDir),
-          validate: (dir) =>
-            isValidPackageName(dir) || 'Invalid package.json name',
-        },
-        {
-          type: 'select',
-          name: 'framework',
-          message: 'Select a template:',
-          choices: frameworks.map((framework) => ({
-            title: framework.display,
-            value: framework,
-          })),
-        },
-        {
-          type: 'select',
-          name: 'variant',
-          message: 'Select a variant:',
-          choices: (prev: Framework) =>
-            prev.variants.map((variant) => ({
-              title: variant.display,
-              value: variant.name,
-            })),
-        },
-      ],
-      {
+  if (!targerDir) {
+    try {
+      response = await prompts(questions, {
         onCancel: () => {
           throw new Error(chalk.red('✖') + ' Operation cancelled')
         },
-      }
-    )
-  } catch (cancelled: any) {
-    console.log(cancelled.message)
-    return
+      })
+    } catch (cancelled: any) {
+      console.log(cancelled.message)
+      return
+    }
   }
 
-  const { framework, packageName, variant } = response
-  const template: string = variant || framework.name
+  const framework: Framework | undefined = response?.framework
+  const packageName: string =
+    response?.packageName || toValidPackageName(targerDir)
+  const variant: string = response?.variant
+  const template: string = variant || framework?.name || options.template
 
   const root = path.join(cwd, targerDir)
   if (!fs.existsSync(root)) {
@@ -139,7 +159,7 @@ async function init() {
     fs.readFileSync(path.join(templateDir, `package.json`), 'utf-8')
   )
 
-  pkg.name = packageName || targerDir
+  pkg.name = packageName
 
   write('package.json', JSON.stringify(pkg, null, 2))
 

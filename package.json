@@ -1,7 +1,7 @@
 {
   "name": "create-app",
   "version": "1.0.0",
-  "description": "Create apps with one command",
+  "description": "A CLI for generate a new app with one command",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
