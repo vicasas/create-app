@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import chalk from 'chalk'
+import gradient from 'gradient-string'
 import { program } from 'commander'
 import prompts from 'prompts'
 
@@ -43,6 +44,8 @@ const frameworks: Framework[] = [
 ]
 
 const cwd = process.cwd()
+
+const caGradient = gradient('#FFFFFF', '#000000')
 
 let targerDir = ''
 
@@ -107,6 +110,15 @@ async function init() {
     | prompts.Answers<'projectName' | 'packageName' | 'framework' | 'variant'>
     | undefined
 
+  console.log()
+  console.log(chalk.bold(caGradient('>>> CREATE APP')))
+  await new Promise((resolve) => setTimeout(resolve, 500))
+  console.log()
+  console.log(
+    ">>> Welcome to Create App CLI! Let's start creating out first application."
+  )
+  console.log()
+
   if (!targerDir) {
     try {
       response = await prompts(questions, {
@@ -126,13 +138,14 @@ async function init() {
   const variant: string = response?.variant
   const template: string = variant || framework?.name || options.template
 
+  // Create the app directory
   const root = path.join(cwd, targerDir)
   if (!fs.existsSync(root)) {
     fs.mkdirSync(root, { recursive: true })
   }
 
   console.log()
-  console.log(`Creating a new app in ${chalk.green(root)}.`)
+  console.log(`>>> Creating a new app in ${chalk.green(root)}.`)
   console.log()
 
   const templateDir = path.resolve(
@@ -163,7 +176,12 @@ async function init() {
 
   write('package.json', JSON.stringify(pkg, null, 2))
 
-  console.log(`\nDone. Now run:\n`)
+  console.log(
+    `${chalk.bold(
+      caGradient('>>> Done!')
+    )} Created a new app at "${targerDir}".`
+  )
+  console.log('Now run:\n')
   if (root !== cwd) {
     console.log(`  cd ${path.relative(cwd, root)}`)
   }
